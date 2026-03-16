@@ -10,6 +10,8 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox,
 )
 
+from typing import Optional
+
 from database.db_manager import DatabaseManager
 from utils.logger import logger
 
@@ -20,7 +22,7 @@ class ExperimentPanel(QWidget):
     def __init__(self, db: DatabaseManager, parent=None) -> None:
         super().__init__(parent)
         self.db = db
-        self._subject_id: str | None = None
+        self._subject_id: Optional[str] = None
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -57,7 +59,7 @@ class ExperimentPanel(QWidget):
 
         layout.addWidget(grp)
 
-    def set_subject(self, subject_id: str | None) -> None:
+    def set_subject(self, subject_id: Optional[str]) -> None:
         self._subject_id = subject_id
         self.refresh()
 

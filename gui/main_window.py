@@ -7,6 +7,8 @@ Layout:
     Music Generation, Experiment Records)
 """
 
+from typing import Optional
+
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QTabWidget,
@@ -61,8 +63,8 @@ class MainWindow(QMainWindow):
         # Core services
         self.db = DatabaseManager()
         self.experiment = ExperimentManager(self.db)
-        self._current_subject: str | None = None
-        self._worker: _Worker | None = None
+        self._current_subject: Optional[str] = None
+        self._worker: Optional[_Worker] = None
 
         self._build_ui()
         self._connect_signals()

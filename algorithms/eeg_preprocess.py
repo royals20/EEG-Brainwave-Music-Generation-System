@@ -80,7 +80,7 @@ def _annotate_artifacts(raw: mne.io.BaseRaw, threshold: float = 200e-6) -> mne.i
     bad_mask = np.any(np.abs(data) > threshold, axis=0)
 
     if not np.any(bad_mask):
-        logger.info("No artefacts detected.")
+        logger.info("No artifacts detected.")
         return raw
 
     # Find contiguous bad segments
@@ -107,7 +107,7 @@ def _annotate_artifacts(raw: mne.io.BaseRaw, threshold: float = 200e-6) -> mne.i
         description=["bad_artifact"] * len(onsets),
     )
     raw.set_annotations(raw.annotations + annotations)
-    logger.info("Marked %d artefact segments.", len(onsets))
+    logger.info("Marked %d artifact segments.", len(onsets))
     return raw
 
 

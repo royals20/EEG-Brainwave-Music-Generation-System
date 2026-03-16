@@ -143,12 +143,12 @@ class ExperimentManager:
     # Full pipeline
     # ------------------------------------------------------------------
     def run_full_pipeline(self, file_path: str, subject_id: str,
-                          eeg_channel: Optional[str] = None) -> str:
+                          channel: Optional[str] = None) -> str:
         """Run the entire analysis pipeline end-to-end."""
         self.import_eeg(file_path, subject_id)
         self.preprocess_eeg()
-        self.run_staging(eeg_name=eeg_channel)
-        self.detect_sws(channel=eeg_channel)
-        self.extract_features(channel=eeg_channel)
+        self.run_staging(eeg_name=channel)
+        self.detect_sws(channel=channel)
+        self.extract_features(channel=channel)
         self.generate_music()
         return self.save_experiment()

@@ -2,6 +2,8 @@
 Subject management panel – add / edit / delete / search subjects.
 """
 
+from typing import Optional
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
@@ -75,7 +77,7 @@ class SubjectPanel(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(str(s.age or "")))
             self.table.setItem(row, 3, QTableWidgetItem(s.group_type or ""))
 
-    def _selected_subject_id(self) -> str | None:
+    def _selected_subject_id(self) -> Optional[str]:
         row = self.table.currentRow()
         if row < 0:
             return None

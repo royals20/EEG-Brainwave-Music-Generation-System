@@ -3,6 +3,7 @@ EEG data import panel – load EDF / BDF / CSV and show basic info.
 """
 
 import os
+from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
@@ -85,5 +86,5 @@ class EEGPanel(QWidget):
         self.channel_combo.clear()
         self.channel_combo.addItems(info.get("ch_names", []))
 
-    def selected_channel(self) -> str | None:
+    def selected_channel(self) -> Optional[str]:
         return self.channel_combo.currentText() or None
