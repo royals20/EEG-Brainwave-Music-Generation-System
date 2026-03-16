@@ -1,0 +1,20 @@
+# EEG Sleep Analysis & Brainwave Music Generation System
+# Core dependencies
+PySide6>=6.5
+numpy>=1.24
+scipy>=1.10
+pandas>=2.0
+mne>=1.4
+SQLAlchemy>=2.0
+
+# EEG visualization
+pyqtgraph>=0.13
+
+# Music generation
+pretty_midi>=0.2.10
+
+# Sleep analysis (optional – system falls back to simple staging if unavailable)
+# yasa>=0.6
+
+# Audio synthesis (optional – system falls back to sine synthesis if unavailable)
+# pyfluidsynth>=1.3

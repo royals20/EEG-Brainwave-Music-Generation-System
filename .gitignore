@@ -1,0 +1,12 @@
+# Generated / runtime
+data/subjects/
+data/eeg_system.db
+logs/
+*.pyc
+__pycache__/
+*.mid
+*.wav
+*.egg-info/
+dist/
+build/
+.eggs/
