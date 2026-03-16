@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+logs/system.log
+ui_screenshot.png
