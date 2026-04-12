@@ -1,0 +1,27 @@
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Tooling and editor settings
+.idea/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+Thumbs.db
+.DS_Store
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Runtime outputs
+output/
+data/*.db
+
+# Logs and temporary files
+*.log
+*.tmp
