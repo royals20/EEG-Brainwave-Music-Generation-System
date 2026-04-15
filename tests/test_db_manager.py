@@ -53,16 +53,27 @@ def test_database_manager():
         sws_id = db.add_sws_result(session_id, 1200.0, 150.5, "[]")
         assert sws_id > 0, "添加 SWS 结果失败"
         print(f"✓ 添加 SWS 结果成功: sws_id = {sws_id}")
+
+        print("\n测试 8.1: 更新同一会话的 SWS 结果")
+        updated_sws_id = db.upsert_sws_result(session_id, 1500.0, 180.5, '[{\"epoch_index\": 0}]')
+        assert updated_sws_id == sws_id, "SWS 结果应更新同一条记录"
+        print(f"✓ 更新 SWS 结果成功: sws_id = {updated_sws_id}")
         
         print("\n测试 9: 添加音乐结果")
         music_id = db.add_music_result(session_id, "/path/to/music.mid", "/path/to/music.wav", 440.0, 120.0, 180.0)
         assert music_id > 0, "添加音乐结果失败"
         print(f"✓ 添加音乐结果成功: music_id = {music_id}")
+
+        print("\n测试 9.1: 更新同一会话的音乐结果")
+        updated_music_id = db.upsert_music_result(session_id, "/path/to/music_v2.mid", "/path/to/music_v2.wav", 442.0, 90.0, 300.0)
+        assert updated_music_id == music_id, "音乐结果应更新同一条记录"
+        print(f"✓ 更新音乐结果成功: music_id = {updated_music_id}")
         
         print("\n测试 10: 查询最新结果")
         latest = db.get_latest_results("S001")
         assert latest is not None, "查询最新结果失败"
-        assert latest['sws_duration'] == 1200.0, "SWS 时长不匹配"
+        assert latest['sws_duration'] == 1500.0, "SWS 时长不匹配"
+        assert latest['avg_tempo'] == 90.0, "音乐节奏不匹配"
         print(f"✓ 查询最新结果成功: {latest}")
         
         print("\n测试 11: 删除受试者")

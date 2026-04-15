@@ -46,7 +46,7 @@ SWS_DETECTION_CONFIG = {
 
 MUSIC_MAPPING_CONFIG = {
     'base_pitch': 60,
-    'pitch_range': 24,
+    'pitch_range': 12,
     'max_frequency': 4.0,
     'min_velocity': 40,
     'max_velocity': 90,

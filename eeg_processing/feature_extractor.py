@@ -3,7 +3,7 @@ from scipy import signal
 from scipy.signal import hilbert, welch
 from typing import Dict, Any, List, Tuple
 
-from eeg_processing.preprocess import bandpass_filter
+from eeg_processing.preprocess import bandpass_filter, ensure_microvolt_scale
 
 
 def smooth_features(features: List[Dict[str, Any]], 
@@ -76,7 +76,7 @@ def extract_epoch_features(epoch_data: np.ndarray, fs: float) -> Dict[str, Any]:
     instantaneous_amplitude = np.abs(analytic_signal)
     features['avg_instantaneous_amplitude'] = np.mean(instantaneous_amplitude)
     
-    is_slow_wave = instantaneous_amplitude >= 75.0
+    is_slow_wave = (instantaneous_amplitude * 2.0) >= 75.0
     features['slow_wave_ratio'] = np.sum(is_slow_wave) / len(is_slow_wave)
     
     features['slow_wave_period'] = 1.0 / (features['dominant_frequency'] + 0.001)
@@ -117,7 +117,8 @@ class FeatureExtractor:
         self.raw_features = []
     
     def extract(self, eeg: np.ndarray, smooth: bool = True) -> List[Dict[str, Any]]:
-        self.raw_features = extract_features_from_epochs(eeg, self.fs, self.epoch_size)
+        eeg_uv, _, _ = ensure_microvolt_scale(eeg)
+        self.raw_features = extract_features_from_epochs(eeg_uv, self.fs, self.epoch_size)
         
         if smooth and len(self.raw_features) >= self.smoothing_window:
             self.features_list = smooth_features(self.raw_features, self.smoothing_window)
@@ -127,7 +128,8 @@ class FeatureExtractor:
         return self.features_list
     
     def extract_from_segment(self, segment: np.ndarray) -> Dict[str, Any]:
-        features = extract_epoch_features(segment, self.fs)
+        segment_uv, _, _ = ensure_microvolt_scale(segment)
+        features = extract_epoch_features(segment_uv, self.fs)
         features['duration'] = len(segment) / self.fs
         return features
     

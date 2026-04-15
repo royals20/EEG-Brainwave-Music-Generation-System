@@ -9,6 +9,7 @@ except ImportError:
     MNE_AVAILABLE = False
 
 from utils.config import EEG_SIMULATION_CONFIG
+from eeg_processing.preprocess import ensure_microvolt_scale
 
 
 class EEGLoader:
@@ -38,7 +39,8 @@ class EEGLoader:
         else:
             raise ValueError(f"Unsupported file format: {ext}")
         
-        self.data = self.raw.get_data()
+        # MNE returns EEG samples in volts; the rest of the pipeline uses uV thresholds.
+        self.data = self.raw.get_data() * 1e6
         self.sample_rate = self.raw.info['sfreq']
         self.channel_names = self.raw.ch_names
         self.duration = self.raw.times[-1]
@@ -53,9 +55,10 @@ class EEGLoader:
         if data.ndim == 1:
             data = data.reshape(1, -1)
         
-        self.data = data
+        scaled_data, _, _ = ensure_microvolt_scale(data)
+        self.data = scaled_data
         self.sample_rate = sample_rate
-        self.channel_names = [f'Channel_{i+1}' for i in range(data.shape[0])]
+        self.channel_names = [f'通道 {i+1}' for i in range(data.shape[0])]
         self.duration = data.shape[1] / sample_rate
         
         return self.get_info()

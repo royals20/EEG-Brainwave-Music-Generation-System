@@ -3,7 +3,7 @@ from typing import List, Dict, Tuple, Any
 from scipy import signal
 from scipy.signal import hilbert, welch
 
-from eeg_processing.preprocess import bandpass_filter
+from eeg_processing.preprocess import bandpass_filter, ensure_microvolt_scale
 from utils.config import SWS_DETECTION_CONFIG
 
 
@@ -28,8 +28,10 @@ def detect_slow_waves_hilbert(eeg_segment: np.ndarray, fs: float,
     
     analytic_signal = hilbert(delta_filtered)
     instantaneous_amplitude = np.abs(analytic_signal)
-    
-    is_slow_wave = instantaneous_amplitude >= amplitude_threshold
+
+    # AASM amplitude threshold is peak-to-peak. Hilbert amplitude approximates peak amplitude.
+    peak_to_peak_amplitude = instantaneous_amplitude * 2.0
+    is_slow_wave = peak_to_peak_amplitude >= amplitude_threshold
     
     slow_wave_count = 0
     in_wave = False
@@ -58,12 +60,14 @@ def detect_slow_waves_hilbert(eeg_segment: np.ndarray, fs: float,
     slow_wave_ratio = slow_wave_time / total_time if total_time > 0 else 0
     
     avg_amplitude = np.mean(instantaneous_amplitude)
+    avg_peak_to_peak_amplitude = np.mean(peak_to_peak_amplitude)
     
     return {
         'slow_wave_count': slow_wave_count,
         'slow_wave_time': slow_wave_time,
         'slow_wave_ratio': slow_wave_ratio,
         'avg_instantaneous_amplitude': avg_amplitude,
+        'avg_peak_to_peak_amplitude': avg_peak_to_peak_amplitude,
         'wave_durations': wave_durations
     }
 
@@ -88,6 +92,7 @@ def detect_sws_epoch(eeg_epoch: np.ndarray, fs: float,
         'slow_wave_time': slow_wave_result['slow_wave_time'],
         'slow_wave_ratio': slow_wave_result['slow_wave_ratio'],
         'avg_instantaneous_amplitude': slow_wave_result['avg_instantaneous_amplitude'],
+        'avg_peak_to_peak_amplitude': slow_wave_result['avg_peak_to_peak_amplitude'],
         'wave_durations': slow_wave_result['wave_durations']
     }
 
@@ -118,9 +123,10 @@ class SWSDetector:
         self.slow_wave_density = 0
     
     def detect(self, eeg: np.ndarray, fs: float) -> Dict[str, Any]:
+        eeg_uv, _, _ = ensure_microvolt_scale(eeg)
         window_size = self.config.get('window_size', 30)
         window_samples = int(window_size * fs)
-        n_epochs = len(eeg) // window_samples
+        n_epochs = len(eeg_uv) // window_samples
         
         self.epochs = []
         sws_epoch_indices = []
@@ -128,7 +134,7 @@ class SWSDetector:
         for i in range(n_epochs):
             start_idx = i * window_samples
             end_idx = start_idx + window_samples
-            epoch_data = eeg[start_idx:end_idx]
+            epoch_data = eeg_uv[start_idx:end_idx]
             
             epoch_result = detect_sws_epoch(epoch_data, fs, self.config)
             epoch_result['epoch_index'] = i
@@ -169,6 +175,7 @@ class SWSDetector:
         }
     
     def get_sws_eeg_segments(self, eeg: np.ndarray, fs: float) -> List[np.ndarray]:
+        eeg_uv, _, _ = ensure_microvolt_scale(eeg)
         sws_segments = []
         window_size = self.config.get('window_size', 30)
         window_samples = int(window_size * fs)
@@ -176,8 +183,8 @@ class SWSDetector:
         for epoch in self.sws_epochs:
             start_idx = int(epoch['start_time'] * fs)
             end_idx = int(epoch['end_time'] * fs)
-            if end_idx <= len(eeg):
-                sws_segments.append(eeg[start_idx:end_idx])
+            if end_idx <= len(eeg_uv):
+                sws_segments.append(eeg_uv[start_idx:end_idx])
         
         return sws_segments
     

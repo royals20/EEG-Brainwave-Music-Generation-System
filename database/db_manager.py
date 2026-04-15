@@ -210,6 +210,35 @@ class DatabaseManager:
             ''', (session_id, sws_duration, avg_delta_power, sws_segments, now))
             result_id = cursor.lastrowid
         return result_id
+
+    def upsert_sws_result(self, session_id: int, sws_duration: float,
+                          avg_delta_power: float, sws_segments: str) -> int:
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+            cursor.execute('''
+                SELECT id FROM sws_results
+                WHERE session_id = ?
+                ORDER BY detection_time DESC, id DESC
+                LIMIT 1
+            ''', (session_id,))
+            row = cursor.fetchone()
+
+            if row:
+                result_id = row['id']
+                cursor.execute('''
+                    UPDATE sws_results
+                    SET sws_duration = ?, avg_delta_power = ?, sws_segments = ?, detection_time = ?
+                    WHERE id = ?
+                ''', (sws_duration, avg_delta_power, sws_segments, now, result_id))
+                return result_id
+
+            cursor.execute('''
+                INSERT INTO sws_results
+                (session_id, sws_duration, avg_delta_power, sws_segments, detection_time)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (session_id, sws_duration, avg_delta_power, sws_segments, now))
+            return cursor.lastrowid
     
     def add_music_result(self, session_id: int, midi_path: str, audio_path: str,
                          avg_pitch: float, avg_tempo: float, music_duration: float) -> int:
@@ -223,6 +252,35 @@ class DatabaseManager:
             ''', (session_id, midi_path, audio_path, avg_pitch, avg_tempo, music_duration, now))
             result_id = cursor.lastrowid
         return result_id
+
+    def upsert_music_result(self, session_id: int, midi_path: str, audio_path: str,
+                            avg_pitch: float, avg_tempo: float, music_duration: float) -> int:
+        with self.connection() as conn:
+            cursor = conn.cursor()
+            now = datetime.now().isoformat()
+            cursor.execute('''
+                SELECT id FROM music_results
+                WHERE session_id = ?
+                ORDER BY generation_time DESC, id DESC
+                LIMIT 1
+            ''', (session_id,))
+            row = cursor.fetchone()
+
+            if row:
+                result_id = row['id']
+                cursor.execute('''
+                    UPDATE music_results
+                    SET midi_path = ?, audio_path = ?, avg_pitch = ?, avg_tempo = ?, music_duration = ?, generation_time = ?
+                    WHERE id = ?
+                ''', (midi_path, audio_path, avg_pitch, avg_tempo, music_duration, now, result_id))
+                return result_id
+
+            cursor.execute('''
+                INSERT INTO music_results
+                (session_id, midi_path, audio_path, avg_pitch, avg_tempo, music_duration, generation_time)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (session_id, midi_path, audio_path, avg_pitch, avg_tempo, music_duration, now))
+            return cursor.lastrowid
     
     def get_subject_sessions(self, subject_id: str) -> List[Dict[str, Any]]:
         with self.readonly_connection() as conn:
@@ -237,11 +295,38 @@ class DatabaseManager:
         with self.readonly_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT e.*, s.sws_duration, s.avg_delta_power, m.midi_path, m.audio_path,
-                       m.avg_pitch, m.avg_tempo, m.music_duration
+                SELECT e.id AS session_id,
+                       e.subject_id,
+                       e.file_path,
+                       e.sample_rate,
+                       e.channel_count,
+                       e.duration_seconds,
+                       e.import_time,
+                       s.sws_duration,
+                       s.avg_delta_power,
+                       s.sws_segments,
+                       s.detection_time,
+                       m.midi_path,
+                       m.audio_path,
+                       m.avg_pitch,
+                       m.avg_tempo,
+                       m.music_duration,
+                       m.generation_time
                 FROM eeg_sessions e
-                LEFT JOIN sws_results s ON e.id = s.session_id
-                LEFT JOIN music_results m ON e.id = m.session_id
+                LEFT JOIN sws_results s ON s.id = (
+                    SELECT sr.id
+                    FROM sws_results sr
+                    WHERE sr.session_id = e.id
+                    ORDER BY sr.detection_time DESC, sr.id DESC
+                    LIMIT 1
+                )
+                LEFT JOIN music_results m ON m.id = (
+                    SELECT mr.id
+                    FROM music_results mr
+                    WHERE mr.session_id = e.id
+                    ORDER BY mr.generation_time DESC, mr.id DESC
+                    LIMIT 1
+                )
                 WHERE e.subject_id = ?
                 ORDER BY e.import_time DESC
                 LIMIT 1

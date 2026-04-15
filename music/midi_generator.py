@@ -19,11 +19,28 @@ from utils.config import MIDI_OUTPUT_DIR, MUSIC_MAPPING_CONFIG
 
 class IndividualizedMIDIGenerator:
     
-    def __init__(self, bpm: int = 60, instrument_program: int = 0):
+    def __init__(self, bpm: int = 60, instrument_program: Optional[int] = None):
         self.bpm = bpm
         self.beats_per_bar = 4
         self.bars_per_loop = 4
         self.instrument_program = instrument_program
+
+    def _infer_instrument_program(self, features: List[Dict[str, Any]]) -> Optional[int]:
+        for feature in features:
+            program = feature.get('instrument')
+            if program is not None:
+                return int(program)
+        return None
+
+    def _resolve_main_instrument_program(self, features: List[Dict[str, Any]]) -> int:
+        if self.instrument_program is not None:
+            return int(self.instrument_program)
+
+        inferred_program = self._infer_instrument_program(features)
+        if inferred_program is not None:
+            return inferred_program
+
+        return 0
     
     def generate(self, features: List[Dict[str, Any]], 
                  output_path: str = None,
@@ -41,11 +58,13 @@ class IndividualizedMIDIGenerator:
             raise ImportError("No MIDI library available")
     
     def _generate_pretty_midi(self, features: List[Dict[str, Any]], 
-                               output_path: str,
-                               target_duration_minutes: float) -> str:
+                                output_path: str,
+                                target_duration_minutes: float) -> str:
         pm = pretty_midi.PrettyMIDI()
-        
-        main_instrument = pretty_midi.Instrument(program=self.instrument_program)
+
+        main_program = self._resolve_main_instrument_program(features)
+        self.instrument_program = main_program
+        main_instrument = pretty_midi.Instrument(program=main_program)
         
         pad_instrument = pretty_midi.Instrument(program=88)
         
@@ -92,14 +111,17 @@ class IndividualizedMIDIGenerator:
         return output_path
     
     def _generate_midiutil(self, features: List[Dict[str, Any]],
-                            output_path: str,
-                            target_duration_minutes: float) -> str:
+                             output_path: str,
+                             target_duration_minutes: float) -> str:
         midi = MIDIFile(2)
+
+        main_program = self._resolve_main_instrument_program(features)
+        self.instrument_program = main_program
         
         midi.addTempo(0, 0, self.bpm)
         midi.addTempo(1, 0, self.bpm)
         
-        midi.addProgramChange(0, 0, 0, self.instrument_program)
+        midi.addProgramChange(0, 0, 0, main_program)
         midi.addProgramChange(1, 0, 0, 88)
         
         beat_duration = 60.0 / self.bpm
@@ -168,7 +190,7 @@ class IndividualizedMIDIGenerator:
 
 class MIDIGenerator:
     
-    def __init__(self, output_dir: str = None, bpm: int = 60, instrument_program: int = 0):
+    def __init__(self, output_dir: str = None, bpm: int = 60, instrument_program: Optional[int] = None):
         self.output_dir = output_dir or MIDI_OUTPUT_DIR
         self.bpm = bpm
         self.instrument_program = instrument_program
@@ -181,6 +203,10 @@ class MIDIGenerator:
                  output_dir: str = None) -> str:
         if output_dir:
             self.output_dir = output_dir
+
+        self.instrument_program = self.individual_generator._resolve_main_instrument_program(features)
+        self.individual_generator.instrument_program = self.instrument_program
+
         output_path = os.path.join(self.output_dir, filename)
         self.midi_path = self.individual_generator.generate(
             features, output_path, target_duration_minutes
@@ -191,7 +217,7 @@ class MIDIGenerator:
         self.bpm = bpm
         self.individual_generator.bpm = bpm
     
-    def set_instrument(self, program: int):
+    def set_instrument(self, program: Optional[int]):
         self.instrument_program = program
         self.individual_generator.instrument_program = program
     

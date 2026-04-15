@@ -3,6 +3,31 @@ from scipy import signal
 from typing import Tuple, Optional
 
 
+def infer_eeg_unit(eeg: np.ndarray) -> Tuple[float, str]:
+    if eeg is None:
+        return 1.0, 'uV'
+
+    eeg = np.asarray(eeg, dtype=float)
+    if eeg.size == 0:
+        return 1.0, 'uV'
+
+    robust_abs = float(np.percentile(np.abs(eeg), 95))
+    if robust_abs == 0:
+        return 1.0, 'uV'
+
+    if robust_abs < 1e-3:
+        return 1e6, 'V'
+    if robust_abs < 1e-1:
+        return 1e3, 'mV'
+    return 1.0, 'uV'
+
+
+def ensure_microvolt_scale(eeg: np.ndarray) -> Tuple[np.ndarray, float, str]:
+    eeg = np.asarray(eeg, dtype=float)
+    scale_factor, source_unit = infer_eeg_unit(eeg)
+    return eeg * scale_factor, scale_factor, source_unit
+
+
 def bandpass_filter(eeg: np.ndarray, low: float, high: float, 
                     fs: float, order: int = 4) -> np.ndarray:
     nyquist = fs / 2
