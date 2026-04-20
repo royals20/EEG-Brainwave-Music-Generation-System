@@ -1,97 +1,194 @@
 import os
+import sqlite3
 import sys
-import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.db_manager import DatabaseManager
+from utils.config import ensure_subject_directories
 
-def test_database_manager():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = os.path.join(tmpdir, "test.db")
-        db = DatabaseManager(db_path)
-        
-        print("测试 1: 添加受试者")
-        result = db.add_subject("S001", "张三", age=25, gender="男", psqi_score=10.5)
-        assert result == True, "添加受试者失败"
-        print("✓ 添加受试者成功")
-        
-        print("\n测试 2: 查询受试者")
-        subject = db.get_subject("S001")
-        assert subject is not None, "查询受试者失败"
-        assert subject['name'] == "张三", "受试者姓名不匹配"
-        print(f"✓ 查询受试者成功: {subject}")
-        
-        print("\n测试 3: 更新受试者")
-        result = db.update_subject("S001", age=26, psqi_score=12.0)
-        assert result == True, "更新受试者失败"
-        subject = db.get_subject("S001")
-        assert subject['age'] == 26, "年龄更新失败"
-        print(f"✓ 更新受试者成功: {subject}")
-        
-        print("\n测试 4: 查询所有受试者")
-        db.add_subject("S002", "李四", age=30, gender="女")
-        subjects = db.get_all_subjects()
-        assert len(subjects) == 2, "受试者数量不正确"
-        print(f"✓ 查询所有受试者成功: 共 {len(subjects)} 人")
-        
-        print("\n测试 5: 搜索受试者")
-        results = db.search_subjects("张")
-        assert len(results) == 1, "搜索结果不正确"
-        print(f"✓ 搜索受试者成功: 找到 {len(results)} 人")
-        
-        print("\n测试 6: 添加 EEG 会话")
-        session_id = db.add_eeg_session("S001", "/path/to/eeg.edf", 256.0, 19, 3600.0)
-        assert session_id > 0, "添加 EEG 会话失败"
-        print(f"✓ 添加 EEG 会话成功: session_id = {session_id}")
-        
-        print("\n测试 7: 查询受试者的 EEG 会话")
-        sessions = db.get_subject_sessions("S001")
-        assert len(sessions) == 1, "EEG 会话数量不正确"
-        print(f"✓ 查询 EEG 会话成功: 共 {len(sessions)} 个会话")
-        
-        print("\n测试 8: 添加 SWS 结果")
-        sws_id = db.add_sws_result(session_id, 1200.0, 150.5, "[]")
-        assert sws_id > 0, "添加 SWS 结果失败"
-        print(f"✓ 添加 SWS 结果成功: sws_id = {sws_id}")
 
-        print("\n测试 8.1: 更新同一会话的 SWS 结果")
-        updated_sws_id = db.upsert_sws_result(session_id, 1500.0, 180.5, '[{\"epoch_index\": 0}]')
-        assert updated_sws_id == sws_id, "SWS 结果应更新同一条记录"
-        print(f"✓ 更新 SWS 结果成功: sws_id = {updated_sws_id}")
-        
-        print("\n测试 9: 添加音乐结果")
-        music_id = db.add_music_result(session_id, "/path/to/music.mid", "/path/to/music.wav", 440.0, 120.0, 180.0)
-        assert music_id > 0, "添加音乐结果失败"
-        print(f"✓ 添加音乐结果成功: music_id = {music_id}")
+def create_database_manager(tmp_path):
+    return DatabaseManager(
+        db_path=str(tmp_path / 'test.db'),
+        output_dir=str(tmp_path / 'output'),
+    )
 
-        print("\n测试 9.1: 更新同一会话的音乐结果")
-        updated_music_id = db.upsert_music_result(session_id, "/path/to/music_v2.mid", "/path/to/music_v2.wav", 442.0, 90.0, 300.0)
-        assert updated_music_id == music_id, "音乐结果应更新同一条记录"
-        print(f"✓ 更新音乐结果成功: music_id = {updated_music_id}")
-        
-        print("\n测试 10: 查询最新结果")
-        latest = db.get_latest_results("S001")
-        assert latest is not None, "查询最新结果失败"
-        assert latest['sws_duration'] == 1500.0, "SWS 时长不匹配"
-        assert latest['avg_tempo'] == 90.0, "音乐节奏不匹配"
-        print(f"✓ 查询最新结果成功: {latest}")
-        
-        print("\n测试 11: 删除受试者")
-        result = db.delete_subject("S001")
-        assert result == True, "删除受试者失败"
-        subject = db.get_subject("S001")
-        assert subject is None, "受试者未删除"
-        print("✓ 删除受试者成功")
-        
-        print("\n测试 12: 重复 ID 约束")
-        db.add_subject("S003", "王五")
-        result = db.add_subject("S003", "赵六")
-        assert result == False, "重复 ID 应该失败"
-        print("✓ 重复 ID 约束验证成功")
-        
-        print("\n" + "="*50)
-        print("所有测试通过！重构成功！")
-        print("="*50)
 
-if __name__ == "__main__":
-    test_database_manager()
+def get_index_names(db_path):
+    with sqlite3.connect(str(db_path)) as conn:
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type = 'index'").fetchall()
+    return {row[0] for row in rows}
+
+
+def test_database_manager_crud_and_latest_results(tmp_path):
+    db = create_database_manager(tmp_path)
+
+    assert db.add_subject('S001', '张三', age=25, gender='男', psqi_score=10.5)
+    assert not db.add_subject('S001', '重复用户')
+    assert db.last_error
+
+    subject = db.get_subject('S001')
+    assert subject is not None
+    assert subject['name'] == '张三'
+
+    assert db.update_subject('S001', age=26, psqi_score=12.0)
+    updated_subject = db.get_subject('S001')
+    assert updated_subject['age'] == 26
+    assert updated_subject['psqi_score'] == 12.0
+
+    assert db.add_subject('S002', '李四', age=30, gender='女')
+    assert len(db.get_all_subjects()) == 2
+    assert len(db.search_subjects('张')) == 1
+
+    session_id = db.add_eeg_session('S001', '/tmp/eeg.edf', 256.0, 19, 3600.0)
+    assert session_id > 0
+    assert len(db.get_subject_sessions('S001')) == 1
+
+    sws_id = db.add_sws_result(session_id, 1200.0, 150.5, '[]')
+    assert sws_id > 0
+    assert db.upsert_sws_result(session_id, 1500.0, 180.5, '[{"epoch_index": 0}]') == sws_id
+
+    music_id = db.add_music_result(session_id, '/tmp/music.mid', '/tmp/music.wav', 440.0, 120.0, 180.0)
+    assert music_id > 0
+    assert db.upsert_music_result(session_id, '/tmp/music_v2.mid', '/tmp/music_v2.wav', 442.0, 90.0, 300.0) == music_id
+
+    latest = db.get_latest_results('S001')
+    assert latest is not None
+    assert latest['sws_duration'] == 1500.0
+    assert latest['avg_tempo'] == 90.0
+
+
+def test_subject_failures_store_specific_last_error(tmp_path):
+    db = create_database_manager(tmp_path)
+
+    assert not db.update_subject('missing', age=18)
+    assert db.last_error == '未找到受试者 missing。'
+
+    assert not db.delete_subject('missing')
+    assert db.last_error == '未找到受试者 missing。'
+
+
+def test_delete_subject_cascades_records_and_output_directory(tmp_path):
+    db = create_database_manager(tmp_path)
+    assert db.add_subject('S010', '待删除用户')
+
+    subject_dirs = ensure_subject_directories('S010', output_dir=str(tmp_path / 'output'))
+    sample_output = os.path.join(subject_dirs['audio'], 'sample.wav')
+    with open(sample_output, 'w', encoding='utf-8') as handle:
+        handle.write('audio')
+
+    session_id = db.add_eeg_session('S010', '/tmp/eeg.edf', 128.0, 2, 120.0)
+    db.add_sws_result(session_id, 30.0, 1.2, '[]')
+    db.add_music_result(session_id, '/tmp/sample.mid', '/tmp/sample.wav', 61.0, 62.0, 120.0)
+
+    assert db.delete_subject('S010')
+    assert db.get_subject('S010') is None
+    assert db.get_subject_sessions('S010') == []
+    assert db.get_latest_results('S010') is None
+    assert not os.path.exists(subject_dirs['subject_dir'])
+
+    assert db.add_subject('S010', '重建用户')
+    assert db.get_subject_sessions('S010') == []
+
+
+def test_startup_cleanup_removes_orphan_records(tmp_path):
+    db_path = tmp_path / 'orphan.db'
+    output_dir = tmp_path / 'output'
+    db = DatabaseManager(db_path=str(db_path), output_dir=str(output_dir))
+    assert db.add_subject('S100', '临时用户')
+    session_id = db.add_eeg_session('S100', '/tmp/eeg.edf', 256.0, 2, 120.0)
+    db.add_sws_result(session_id, 30.0, 1.0, '[]')
+    db.add_music_result(session_id, '/tmp/sample.mid', '/tmp/sample.wav', 60.0, 60.0, 120.0)
+
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute('PRAGMA foreign_keys = OFF')
+        conn.execute("DELETE FROM subjects WHERE subject_id = 'S100'")
+        conn.commit()
+
+    repaired_db = DatabaseManager(db_path=str(db_path), output_dir=str(output_dir))
+    assert repaired_db.get_subject('S100') is None
+    assert repaired_db.get_subject_sessions('S100') == []
+
+
+def test_database_manager_creates_history_indexes_for_new_database(tmp_path):
+    db_path = tmp_path / 'indexed.db'
+    DatabaseManager(db_path=str(db_path), output_dir=str(tmp_path / 'output'))
+
+    index_names = get_index_names(db_path)
+    assert 'idx_eeg_sessions_subject_import_time' in index_names
+    assert 'idx_sws_results_session_detection_time' in index_names
+    assert 'idx_music_results_session_generation_time' in index_names
+
+
+def test_database_manager_creates_indexes_after_legacy_migration(tmp_path):
+    db_path = tmp_path / 'legacy.db'
+    output_dir = tmp_path / 'output'
+
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute(
+            '''
+            CREATE TABLE subjects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                age INTEGER,
+                gender TEXT,
+                psqi_score REAL,
+                group_type TEXT,
+                record_date TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+            '''
+        )
+        conn.execute(
+            '''
+            CREATE TABLE eeg_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject_id TEXT NOT NULL,
+                file_path TEXT,
+                sample_rate REAL,
+                channel_count INTEGER,
+                duration_seconds REAL,
+                import_time TEXT,
+                FOREIGN KEY (subject_id) REFERENCES subjects (subject_id)
+            )
+            '''
+        )
+        conn.execute(
+            '''
+            CREATE TABLE sws_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                sws_duration REAL,
+                avg_delta_power REAL,
+                sws_segments TEXT,
+                detection_time TEXT,
+                FOREIGN KEY (session_id) REFERENCES eeg_sessions (id)
+            )
+            '''
+        )
+        conn.execute(
+            '''
+            CREATE TABLE music_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                midi_path TEXT,
+                audio_path TEXT,
+                avg_pitch REAL,
+                avg_tempo REAL,
+                music_duration REAL,
+                generation_time TEXT,
+                FOREIGN KEY (session_id) REFERENCES eeg_sessions (id)
+            )
+            '''
+        )
+        conn.commit()
+
+    DatabaseManager(db_path=str(db_path), output_dir=str(output_dir))
+
+    index_names = get_index_names(db_path)
+    assert 'idx_eeg_sessions_subject_import_time' in index_names
+    assert 'idx_sws_results_session_detection_time' in index_names
+    assert 'idx_music_results_session_generation_time' in index_names

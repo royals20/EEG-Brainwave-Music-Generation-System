@@ -28,6 +28,15 @@ def _load_csv_rows(filepath: str) -> List[Dict[str, Any]]:
         return list(reader)
 
 
+def _read_csv_fieldnames(filepath: str) -> List[str]:
+    if not os.path.exists(filepath):
+        return []
+
+    with open(filepath, 'r', newline='', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        return next(reader, [])
+
+
 def _resolve_fieldnames(existing_rows: List[Dict[str, Any]],
                         new_rows: List[Dict[str, Any]],
                         preferred_fieldnames: Optional[List[str]] = None) -> List[str]:
@@ -60,6 +69,14 @@ def _write_csv_rows(rows: List[Dict[str, Any]], output_path: str, fieldnames: Li
     return output_path
 
 
+def _append_csv_rows(rows: List[Dict[str, Any]], output_path: str, fieldnames: List[str]) -> str:
+    with open(output_path, 'a', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writerows(_normalize_rows(rows, fieldnames))
+
+    return output_path
+
+
 def export_to_csv(data: List[Dict[str, Any]], output_path: str = None,
                   fieldnames: List[str] = None) -> str:
     output_path = _resolve_output_path(output_path)
@@ -76,15 +93,23 @@ def export_to_csv(data: List[Dict[str, Any]], output_path: str = None,
 def append_to_csv(data: List[Dict[str, Any]], output_path: str = None,
                   fieldnames: List[str] = None) -> str:
     output_path = _resolve_output_path(output_path)
+    if not data:
+        if not os.path.exists(output_path):
+            with open(output_path, 'w', newline='', encoding='utf-8') as f:
+                f.write('')
+        return output_path
+
+    existing_fieldnames = _read_csv_fieldnames(output_path)
+    if not existing_fieldnames:
+        resolved_fieldnames = _resolve_fieldnames([], data, fieldnames)
+        return _write_csv_rows(data, output_path, resolved_fieldnames)
+
+    required_fieldnames = _resolve_fieldnames([], data, fieldnames)
+    if all(field in existing_fieldnames for field in required_fieldnames):
+        return _append_csv_rows(data, output_path, existing_fieldnames)
 
     existing_data = _load_csv_rows(output_path)
     combined_data = existing_data + data
-
-    if not combined_data:
-        with open(output_path, 'w', newline='', encoding='utf-8') as f:
-            f.write('')
-        return output_path
-
     resolved_fieldnames = _resolve_fieldnames(existing_data, data, fieldnames)
     return _write_csv_rows(combined_data, output_path, resolved_fieldnames)
 

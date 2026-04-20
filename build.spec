@@ -1,6 +1,4 @@
 # -*- mode: python ; coding: utf-8 -*-
-import sys
-import os
 from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
@@ -10,7 +8,7 @@ binaries = []
 hiddenimports = [
     'PyQt5',
     'PyQt5.QtCore',
-    'PyQt5.QtGui', 
+    'PyQt5.QtGui',
     'PyQt5.QtWidgets',
     'numpy',
     'scipy',
@@ -23,15 +21,18 @@ hiddenimports = [
     'midiutil',
     'pretty_midi',
     'pygame',
+    'fluidsynth',
+    'mne',
 ]
 
-try:
-    pillow_datas, pillow_binaries, pillow_hiddenimports = collect_all('PIL')
-    datas.extend(pillow_datas)
-    binaries.extend(pillow_binaries)
-    hiddenimports.extend(pillow_hiddenimports)
-except Exception:
-    pass
+for package_name in ('PIL', 'matplotlib', 'pygame', 'mne'):
+    try:
+        package_datas, package_binaries, package_hiddenimports = collect_all(package_name)
+        datas.extend(package_datas)
+        binaries.extend(package_binaries)
+        hiddenimports.extend(package_hiddenimports)
+    except Exception:
+        pass
 
 a = Analysis(
     ['main.py'],
@@ -43,7 +44,6 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'mne',
         'torch',
         'tensorflow',
         'keras',

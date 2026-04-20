@@ -7,6 +7,16 @@ from eeg_processing.preprocess import bandpass_filter, ensure_microvolt_scale
 from utils.config import SWS_DETECTION_CONFIG
 
 
+def _find_rising_zero_crossings(signal_values: np.ndarray) -> np.ndarray:
+    if len(signal_values) < 2:
+        return np.array([], dtype=int)
+
+    crossings = np.where((signal_values[:-1] <= 0) & (signal_values[1:] > 0))[0] + 1
+    if signal_values[0] == 0 and signal_values[1] > 0:
+        crossings = np.insert(crossings, 0, 0)
+    return crossings
+
+
 def compute_delta_power_welch(eeg_segment: np.ndarray, fs: float, 
                                delta_band: Tuple[float, float] = (0.5, 4.0)) -> float:
     nperseg = min(1024, len(eeg_segment))
@@ -22,8 +32,8 @@ def compute_delta_power_welch(eeg_segment: np.ndarray, fs: float,
 
 
 def detect_slow_waves_hilbert(eeg_segment: np.ndarray, fs: float,
-                               amplitude_threshold: float = 75.0,
-                               freq_range: Tuple[float, float] = (0.5, 2.0)) -> Dict[str, Any]:
+                                amplitude_threshold: float = 75.0,
+                                freq_range: Tuple[float, float] = (0.5, 2.0)) -> Dict[str, Any]:
     delta_filtered = bandpass_filter(eeg_segment, freq_range[0], freq_range[1], fs)
     
     analytic_signal = hilbert(delta_filtered)
@@ -34,28 +44,29 @@ def detect_slow_waves_hilbert(eeg_segment: np.ndarray, fs: float,
     is_slow_wave = peak_to_peak_amplitude >= amplitude_threshold
     
     slow_wave_count = 0
-    in_wave = False
+    slow_wave_time = 0.0
     wave_durations = []
-    wave_start = 0
-    
-    for i, sw in enumerate(is_slow_wave):
-        if sw and not in_wave:
-            in_wave = True
-            wave_start = i
-        elif not sw and in_wave:
-            in_wave = False
-            duration = (i - wave_start) / fs
-            if duration >= 0.5:
-                slow_wave_count += 1
-                wave_durations.append(duration)
-    
-    if in_wave:
-        duration = (len(is_slow_wave) - wave_start) / fs
-        if duration >= 0.5:
-            slow_wave_count += 1
-            wave_durations.append(duration)
-    
-    slow_wave_time = np.sum(is_slow_wave) / fs
+    min_cycle_duration = 1.0 / max(freq_range[1], 1e-6)
+    max_cycle_duration = 1.0 / max(freq_range[0], 1e-6)
+    rising_crossings = _find_rising_zero_crossings(delta_filtered)
+
+    for start_idx, end_idx in zip(rising_crossings[:-1], rising_crossings[1:]):
+        duration = (end_idx - start_idx) / fs
+        if duration < min_cycle_duration or duration > max_cycle_duration:
+            continue
+
+        cycle = delta_filtered[start_idx:end_idx]
+        if cycle.size == 0:
+            continue
+
+        cycle_peak_to_peak = float(np.max(cycle) - np.min(cycle))
+        if cycle_peak_to_peak < amplitude_threshold:
+            continue
+
+        slow_wave_count += 1
+        slow_wave_time += duration
+        wave_durations.append(duration)
+
     total_time = len(eeg_segment) / fs
     slow_wave_ratio = slow_wave_time / total_time if total_time > 0 else 0
     

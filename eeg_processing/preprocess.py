@@ -28,8 +28,17 @@ def ensure_microvolt_scale(eeg: np.ndarray) -> Tuple[np.ndarray, float, str]:
     return eeg * scale_factor, scale_factor, source_unit
 
 
+def _can_apply_zero_phase_filter(b: np.ndarray, a: np.ndarray, sample_count: int) -> bool:
+    padlen = 3 * max(len(a), len(b))
+    return sample_count > padlen
+
+
 def bandpass_filter(eeg: np.ndarray, low: float, high: float, 
                     fs: float, order: int = 4) -> np.ndarray:
+    eeg = np.asarray(eeg, dtype=float)
+    if eeg.size == 0:
+        return eeg.copy()
+
     nyquist = fs / 2
     low_normalized = low / nyquist
     high_normalized = high / nyquist
@@ -38,6 +47,9 @@ def bandpass_filter(eeg: np.ndarray, low: float, high: float,
     high_normalized = max(low_normalized + 0.001, min(high_normalized, 0.999))
     
     b, a = signal.butter(order, [low_normalized, high_normalized], btype='band')
+    if not _can_apply_zero_phase_filter(b, a, eeg.size):
+        return eeg.copy()
+
     filtered = signal.filtfilt(b, a, eeg)
     
     return filtered
@@ -45,7 +57,13 @@ def bandpass_filter(eeg: np.ndarray, low: float, high: float,
 
 def notch_filter(eeg: np.ndarray, freq: float, fs: float, 
                  quality_factor: float = 30) -> np.ndarray:
+    eeg = np.asarray(eeg, dtype=float)
+    if eeg.size == 0:
+        return eeg.copy()
+
     b, a = signal.iirnotch(freq, quality_factor, fs)
+    if not _can_apply_zero_phase_filter(b, a, eeg.size):
+        return eeg.copy()
     filtered = signal.filtfilt(b, a, eeg)
     return filtered
 

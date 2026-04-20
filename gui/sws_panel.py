@@ -9,9 +9,9 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'Arial Unicode MS']
 plt.rcParams['axes.unicode_minus'] = False
@@ -26,17 +26,17 @@ class SWSCanvas(FigureCanvas):
 
     def plot_sws_detection(self, epochs):
         self.fig.clear()
+        axis = self.fig.add_subplot(111)
 
-        ax = self.fig.add_subplot(111)
         times = [epoch['start_time'] for epoch in epochs]
         delta_powers = [epoch.get('delta_power', 0) for epoch in epochs]
         colors = ['steelblue' if epoch.get('is_sws', False) else 'lightgray' for epoch in epochs]
 
-        ax.bar(times, delta_powers, width=28, color=colors, alpha=0.7, edgecolor='white')
-        ax.set_xlabel('时间（秒）')
-        ax.set_ylabel('Delta 功率')
-        ax.set_title('SWS 检测结果（蓝色=SWS）')
-        ax.grid(True, alpha=0.3, axis='y')
+        axis.bar(times, delta_powers, width=28, color=colors, alpha=0.7, edgecolor='white')
+        axis.set_xlabel('时间（秒）')
+        axis.set_ylabel('Delta 功率')
+        axis.set_title('SWS 检测结果（蓝色=SWS）')
+        axis.grid(True, alpha=0.3, axis='y')
 
         self.fig.tight_layout()
         self.draw()
@@ -69,13 +69,13 @@ class SWSPanel(QWidget):
         self.delta_threshold_spin.setSingleStep(1e-7)
         config_layout.addWidget(self.delta_threshold_spin, 0, 1)
 
-        config_layout.addWidget(QLabel('慢波振幅阈值 (uV):'), 0, 2)
+        config_layout.addWidget(QLabel('慢波振幅阈值（uV）:'), 0, 2)
         self.amplitude_threshold_spin = QDoubleSpinBox()
         self.amplitude_threshold_spin.setRange(10, 200)
         self.amplitude_threshold_spin.setValue(75)
         config_layout.addWidget(self.amplitude_threshold_spin, 0, 3)
 
-        config_layout.addWidget(QLabel('慢波占比阈值 (%):'), 1, 0)
+        config_layout.addWidget(QLabel('慢波占比阈值（%）:'), 1, 0)
         self.ratio_threshold_spin = QDoubleSpinBox()
         self.ratio_threshold_spin.setRange(5, 50)
         self.ratio_threshold_spin.setValue(20)
@@ -91,7 +91,6 @@ class SWSPanel(QWidget):
         detect_layout.addWidget(self.detect_btn)
 
         results_layout = QGridLayout()
-
         results_layout.addWidget(QLabel('SWS 总时长:'), 0, 0)
         self.sws_duration_label = QLabel('-')
         self.sws_duration_label.setStyleSheet('font-weight: bold; font-size: 14px; color: #2196F3;')
@@ -115,11 +114,11 @@ class SWSPanel(QWidget):
         detect_layout.addLayout(results_layout)
         layout.addWidget(detect_group)
 
-        viz_group = QGroupBox('SWS 可视化')
-        viz_layout = QVBoxLayout(viz_group)
+        visualization_group = QGroupBox('SWS 可视化')
+        visualization_layout = QVBoxLayout(visualization_group)
         self.canvas = SWSCanvas(self)
-        viz_layout.addWidget(self.canvas)
-        layout.addWidget(viz_group)
+        visualization_layout.addWidget(self.canvas)
+        layout.addWidget(visualization_group)
 
     def on_detect(self):
         self.detect_clicked.emit()
@@ -127,13 +126,13 @@ class SWSPanel(QWidget):
     def update_results(self, results):
         self.sws_results = results
 
-        duration = results.get('total_sws_duration', 0)
+        duration = float(results.get('total_sws_duration', 0) or 0)
         minutes = int(duration // 60)
         seconds = duration % 60
-        self.sws_duration_label.setText(f"{minutes}分 {seconds:.1f}秒")
+        self.sws_duration_label.setText(f'{minutes}分{seconds:.1f}秒')
 
         delta_power = results.get('avg_delta_power', 0)
-        self.avg_delta_label.setText(f"{delta_power:.2e}" if delta_power > 0 else '-')
+        self.avg_delta_label.setText(f'{delta_power:.2e}' if delta_power > 0 else '-')
         self.epoch_count_label.setText(str(results.get('sws_epoch_count', 0)))
         self.sw_density_label.setText(f"{results.get('slow_wave_density', 0):.2f}")
 
@@ -160,3 +159,6 @@ class SWSPanel(QWidget):
 
     def set_enabled(self, enabled):
         self.detect_btn.setEnabled(enabled)
+        self.delta_threshold_spin.setEnabled(enabled)
+        self.amplitude_threshold_spin.setEnabled(enabled)
+        self.ratio_threshold_spin.setEnabled(enabled)
